@@ -1,0 +1,5 @@
+vi Demo2.txt
+
+claer
+clear
+The End.
