@@ -1,0 +1,26 @@
+<html>
+<script>
+/*The visitor can type something in the prompt input field and press OK. Then we get that text in the result. Or they can cancel the input by pressing Cancel or hitting the Esc key, then we get null as the result. The call to prompt returns the text from the input field or null if the input was canceled.
+syntax of title
+	result = prompt(title, [default]);*/
+	var age = prompt('How old are you?', 100); //prompt example
+
+	alert(`You are ${age} years old!`);
+	
+/*	The syntax:
+result = confirm(question);
+The function confirm shows a modal window with a question and two buttons: OK and Cancel.The result is true if OK is pressed and false otherwise.For example:*/
+	var isBoss = confirm("Are you the boss?");
+	alert( isBoss ); // true if OK is pressed
+	//string conversation
+	var value = true;
+	alert(typeof value); // boolean
+	value = String(value); // now value is a string "true"
+	alert(typeof value);
+	//numeric conversation
+	let str = "123";
+	alert(typeof str); // string
+	let num = Number(str); // becomes a number 123
+	alert(typeof num);
+</script>
+</html>

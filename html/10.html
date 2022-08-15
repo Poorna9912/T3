@@ -1,0 +1,61 @@
+<html>
+	<head>
+		<title> forms</title>
+	</head>
+	<body>
+		<h1 align= "center" >Employee Register Form</h1>
+		<form align= "center" autocomplete="on">
+			<p>
+				<label>Mr.</label>
+				<input type="radio" id="mr" name="respect"/>
+				<label>Ms.</label>
+				<input type="radio" id="ms"name="respect"/>
+			</p>
+			<p>
+				<label for="firstname">First Name</label>
+				<input type="text"  id="firstname" name="firstname"pattern="[A-Za-z]"min="1" max="20"  title="Three letter country code">
+			</p>	
+			<p>
+				<label for="lastname">Last Name</label>
+				<input type="text" id="lastname"  size="10">
+			</p>			
+			
+			<p>
+				<label for="email1">Mail Address1</label>
+				<input type="email" id="email1"maxlength="20" size="20" >
+			</p>	
+			 <p>
+				<label for="email2">Mail Address2</label>
+				<input type="email" id="email2"maxlength="20" size="20">
+			</p>	
+			<p>
+				<label for="phonenumber">Phone Number</label>
+				<input type="tel" id="phonenumber" placeholder="123-45-678-90" pattern="[0-9]{10}">
+			</p>	
+			<p>
+				<label for="city">City</label>
+				<input type="text" id="city"maxlength="10" size="10">
+			</p>
+			
+			<p>
+				<label>State</label>
+				<select>
+					<option>----select------<option>
+					<option value="ap">Andhra Pradesh</option>
+					<option value="tp">Telegana</option>
+					<option value="tm">Tamil Nadu</option>
+					<option value="ke">Kerala</option>
+				</select>
+			</p>	
+			<p>
+				<label>Upload Photo</label>
+				<input type="file" id="myfile">
+			</p>
+			
+			<p>
+				<button type="submit">Register</button>
+				<a href="1.html">back to home </a>
+			</p>
+		</form>
+	</body>
+</html>

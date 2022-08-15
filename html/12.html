@@ -1,0 +1,44 @@
+<html>
+	<head>
+		
+		<link href="12.css" rel="stylesheet"/>
+	</head>
+	<body>
+		<h1 align= "center">Job Application Form</h1>
+		<form  >
+		<p >
+			<label>Mr.</label>
+			<input type="radio" id="mr" name="respect">
+			<label>Ms.</label>
+			<input type="radio" id="ms"name="respect">
+		</p>
+		<p id="para1">
+			<label for="firstname">First Name</label>
+			<input type="text"  id="firstname"  pattern="[A-Za-z]{1,20}"   size="10"  required>
+		</p>
+		<p>
+			<label for="firstname">Last Name</label>
+			<input type="text"  id="firstname"  minlength="1" maxlength="4"  size="10"  required>
+		</p>
+		<p>
+			<label for="datemin"> Date Of Birth:</label>
+			<input type="date" id="dob" name="datemin" min="1994-01-01" required>
+		
+			<label> Age</label>
+			<input type="number" id="age" min="25" max="32" required>
+		</p>
+		<p>
+			<label> Select Date and Time </label>
+			<input type="datetime-local" id="datetime">
+		</p>	
+		<p>
+			<label>Upload Photo</label>
+			<input type="file" id="myfile">
+		</p> 
+		<p>
+			<button type="submit">Register</button>
+				<a href="1.html">back to home </a>	
+		</p>
+		</form>
+	</body>
+</html>	

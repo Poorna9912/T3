@@ -1,0 +1,49 @@
+<html>
+	<head>
+	</head>
+	<script>
+	function validateForm(){  
+	var name=document.form1.firstname.value;  
+	var lname=document.form1.lastname.value;
+	//var password=document.form1.password.value;  
+	  
+	if (name==null || name=="") {  
+	  alert("First Name can't be blank");  
+	  return false;  
+	}
+	else if( name=='0' && name=='9' )
+	{
+	  alert("First Name can't be contain numbers");  
+	  return false;  
+	}
+	else if( lname==null || lname==""){
+	alert(" Last Name can't be blank");  
+	  return false;  
+	}
+	else if( name=='0' && name=='9' )
+	{
+	  alert("Last Name can't be contain numbers");  
+	  return false;  
+	}
+	
+	//else if ((name='0'&& name='9') )
+}  
+	</script>
+	<body>
+		<h1> validation</h1>
+		<form name="form1">
+		<form  >
+		<p >
+			<label for="firstname">First Name</label>
+			<input type="text"  id="firstname" name="firstname" size="20"  >
+		</p>
+		<p>
+			<label for="firstname">Last Name</label>
+			<input type="text"  id="firstname"  name="lastname"  size="20"  >
+		</p>
+		
+		<button onclick="validateForm()">click</button>
+		
+		</form>
+	</body>
+</html>

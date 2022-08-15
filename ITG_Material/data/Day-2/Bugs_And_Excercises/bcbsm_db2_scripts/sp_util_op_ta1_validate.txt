@@ -1,0 +1,137 @@
+
+
+CREATE PROCEDURE EDIDB2A.SP_UTIL_OP_TA1_VALIDATE (
+    IN P_FILEID				VARCHAR(15),
+    IN P_INPUTFILENAME 		VARCHAR(50),
+    IN P_INPUTROOTDIR 		VARCHAR(100),
+    IN P_INPUTSUBDIR 		VARCHAR(100),
+    IN P_SOURCESTRING		VARCHAR(500),
+    IN P_SENDERID			VARCHAR(20),
+    IN P_STATUS 			VARCHAR(02),
+    IN P_DELIMITER			VARCHAR(1),
+    IN P_TERMINATOR			VARCHAR(1),
+    OUT P_ERR_CODE			INTEGER,
+    OUT P_ERR_DESC			VARCHAR(50),
+    OUT P_ISA_CNTL_NUMS		VARCHAR(500),
+    OUT P_FILEPATH			VARCHAR(100),
+    OUT P_FILENAME			VARCHAR(50),
+    OUT P_TRANNUM 			VARCHAR(5) )
+  
+  LANGUAGE SQL
+  NOT DETERMINISTIC
+  EXTERNAL ACTION
+  MODIFIES SQL DATA
+  CALLED ON NULL INPUT
+  INHERIT SPECIAL REGISTERS
+BEGIN
+DECLARE v_SenderId 			VARCHAR(20);
+DECLARE v_SourceString 		VARCHAR(200);
+DECLARE v_rString 			VARCHAR(200);
+DECLARE v_String 			VARCHAR(200);
+DECLARE v_Delimiter 		VARCHAR(1);
+DECLARE v_Terminator 		VARCHAR(1);
+DECLARE v_ISACNTLNUM 		VARCHAR(9);
+DECLARE v_TA1ACK 			VARCHAR(1);
+DECLARE v_StringLength 		INTEGER;
+DECLARE v_m 				INTEGER DEFAULT 1;
+DECLARE v_n 				INTEGER;
+DECLARE v_fileId 			BIGINT;
+DECLARE v_tranType 			VARCHAR(4);
+DECLARE SQLCODE 			INTEGER DEFAULT 0;
+DECLARE  v_ISACNTLNUMS 		VARCHAR(200) default '';
+DECLARE  v_FileRoot 		VARCHAR(60);
+DECLARE  v_SubRoot 			VARCHAR(60);
+DECLARE  v_FileName 		VARCHAR(60);
+DECLARE  v_TA1ACK1 			VARCHAR(02);
+DECLARE  v_Status 			VARCHAR(1);
+DECLARE  v_InputFileId 		VARCHAR(15);
+DECLARE  v_InputFileName  	VARCHAR(50);
+DECLARE  v_InputFileRoot  	VARCHAR(100);
+DECLARE  v_InputFileSub  	VARCHAR(100);
+DECLARE  v_File_Path  		VARCHAR(100);
+DECLARE  v_IsaControlNum 	VARCHAR(20)default ''; 
+
+DECLARE EXIT HANDLER FOR SQLEXCEPTION
+VALUES(SQLCODE) INTO P_ERR_CODE;
+
+SET v_SourceString = 		P_SourceString;
+SET v_Delimiter = 			P_Delimiter;
+SET v_Terminator= 			P_Terminator;
+SET v_SenderId = 			P_SENDERID;
+SET v_Status = 				P_STATUS;
+SET v_InputFileId = 		P_FILEID;
+SET v_InputFileName = 		P_INPUTFILENAME;
+SET v_InputFileRoot = 		P_INPUTROOTDIR;
+SET v_InputFileSub = 		P_INPUTSUBDIR;
+SET  v_File_Path = v_InputFileRoot || v_InputFileSub;        
+
+
+
+-- =============================================================
+-- TO FIND THE NUMBER OF FIELD TERMINATORS
+-- ============================================================
+SET v_rString = REPLACE(v_SourceString,v_Terminator,'');
+SET v_n=(LENGTH(v_SourceString) - LENGTH(v_rString));
+-- ==============================================================
+-- REPEAT LOOP FOR 'n' NUMBER OF OCCURENCES OF FIELD TERMINATOR
+-- ==============================================================
+WHILE (v_m<=v_n)
+DO
+	SET v_String=SUBSTR(v_SourceString,1,(LOCATE(v_Terminator,v_SourceString)-1));
+	SET v_ISACNTLNUM=SUBSTR(v_String,1,(LOCATE(v_Delimiter,v_String)-1));
+	SET v_StringLength=LENGTH(v_ISACNTLNUM);
+	SET v_TA1ACK=SUBSTR(v_String,v_StringLength+2);                       
+  UPDATE EDIDB2A.T_OUT_ISA SET TA1_ACKN_STT = v_TA1ACK WHERE ISA_CTRL_NUM =CAST(v_ISACNTLNUM AS INTEGER) AND RECV_ID = P_SENDERID;
+ -- SET P_ERR_CODE = SQLCODE;
+	
+	IF v_TA1ACK = 'R' AND v_ISACNTLNUM <> v_IsaControlNum THEN  
+	 SET  v_IsaControlNum = v_ISACNTLNUM ; 
+	SET v_ISACNTLNUMS = v_ISACNTLNUMS || v_IsaControlNum || '|';
+  END IF;
+	
+	SELECT FILE_ID,TRAN_NUM INTO v_fileId,v_tranType FROM EDIDB2A.T_OUT_ISA WHERE ISA_CTRL_NUM =CAST(v_ISACNTLNUM AS INTEGER) AND RECV_ID = P_SENDERID FETCH FIRST 1 ROWS ONLY WITH UR;
+	SET P_ERR_CODE = SQLCODE ;
+	
+	SELECT SUBSTR(v_tranType,1,3) INTO v_tranType FROM SYSIBM.SYSDUMMY1;
+	
+	IF v_TA1ACK = 'A' THEN 
+	SET v_TA1ACK1 = '01';
+	ELSEIF v_TA1ACK = 'R' THEN 
+	SET v_TA1ACK1 = '03';
+	END IF;
+	
+	
+	IF v_tranType = '837' THEN
+		UPDATE EDIDB2A.T_837_FILE_PCES_LOG SET FILE_STT_CD = v_Status WHERE FILE_ID = v_fileId ;
+	     ELSEIF v_tranType = '834' THEN
+		--UPDATE EDIDB2A.T_834_FILE_CTRL_LOG SET FILE_STT_CD = v_Status WHERE FILE_ID = v_fileId ;
+	     ELSEIF v_tranType = '835' THEN
+	      UPDATE EDIDB2A.T_835_FILE_PCES_LOG SET FILE_STT_CD = v_Status WHERE FILE_ID = v_fileId ;
+    ELSEIF v_tranType = '820' THEN
+	--UPDATE EDIDB2A.T_820_FILE_CTRL_LOG SET FILE_STT_CD = v_Status WHERE FILE_ID = v_fileId ;
+	ELSE
+	SET P_ERR_CODE = 100;
+	SET P_ERR_DESC = 'Transaction Type Invalid';
+	END IF;
+	SET v_StringLength=LENGTH(v_String);
+	SET v_SourceString=SUBSTR(v_SourceString,v_StringLength+2);
+	SET v_m = v_m+1;
+END WHILE;
+
+IF v_tranType = '837' THEN
+SELECT FILE_ROOT_DTRY_TXT,FILE_SUB_DTRY_TXT,FILE_NME INTO v_FileRoot,v_SubRoot,v_FileName  FROM EDIDB2A.T_837_FILE_PCES_LOG WHERE FILE_ID = v_fileId ;
+INSERT INTO EDIDB2A.T_837_FILE_PCES_LOG (FILE_ID,FILE_NME,FILE_ROOT_DTRY_TXT,FILE_SUB_DTRY_TXT)VALUES(CAST (v_InputFileId AS BIGINT), v_InputFileName ,v_InputFileRoot,v_InputFileSub);
+
+ ELSEIF v_tranType = '834' THEN                                                                                                       
+--SELECT FILE_PATH_TXT,FILE_NME INTO v_FileRoot,v_FileName FROM  EDIDB2A.T_834_FILE_CTRL_LOG WHERE FILE_ID= v_fileId;
+--INSERT INTO EDIDB2A.T_834_FILE_CTRL_LOG (FILE_ID,FILE_NME,FILE_PATH_TXT) VALUES(CAST (v_InputFileId AS BIGINT),v_InputFileName ,v_File_Path); 
+ELSEIF v_tranType = '835' THEN
+SELECT FILE_ROOT_DTRY_TXT,FILE_SUB_DTRY_TXT,FILE_NME INTO v_FileRoot,v_SubRoot,v_FileName FROM EDIDB2A.T_835_FILE_PCES_LOG WHERE FILE_ID = v_fileId;
+INSERT INTO EDIDB2A.T_835_FILE_PCES_LOG  (FILE_ID,FILE_NME,FILE_ROOT_DTRY_TXT,FILE_SUB_DTRY_TXT) VALUES(CAST (v_InputFileId AS BIGINT), v_InputFileName ,v_InputFileRoot,v_InputFileSub);
+ELSEIF v_tranType = '820' THEN
+	END IF;
+SET P_ISA_CNTL_NUMS = v_ISACNTLNUMS;
+SET P_FILEPATH = v_FileRoot || v_SubRoot;
+SET P_FILENAME = v_FileName;
+SET P_TRANNUM =	 v_tranType;
+END@

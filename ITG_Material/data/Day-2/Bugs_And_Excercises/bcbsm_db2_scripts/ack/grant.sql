@@ -1,0 +1,30 @@
+-- Timestamp: Thu 02 Sep 2010 04:52:06 PM EDT
+-- Database Name: EDIDBT         
+-- Database Manager Version: DB2/LINUXZ64 Version 9.5.4    
+-- Database Codepage: 1252
+-- Database Collating Sequence is: UNIQUE
+
+--=============================================================================
+-- Authorization Statements on Database in ACK
+--=============================================================================
+
+GRANT CONNECT ON DATABASE  TO USER "EDIDB2A " ;
+
+GRANT LOAD ON DATABASE  TO USER "EDIDB2A " ;
+
+GRANT BINDADD ON DATABASE  TO USER "EDIDB2A " ;
+--=============================================================================
+-- Authorization Statements on Stored Procedures in ACK
+--=============================================================================
+
+GRANT EXECUTE ON PROCEDURE "EDIDB2A"."SP_UTIL_INSRT_TA1_999_ACK"( VARCHAR(), BIGINT,VARCHAR(),VARCHAR(),INTEGER,VARCHAR() ) TO USER "EDIDB2A" ;
+
+GRANT EXECUTE ON PROCEDURE "EDIDB2A"."SP_UTIL_OP_999_VALIDATE"( VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(), INTEGER,VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR() ) TO USER "EDIDB2A" ;
+
+GRANT EXECUTE ON PROCEDURE "EDIDB2A"."SP_UTIL_OP_TA1_VALIDATE"( VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(), INTEGER,VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR(),VARCHAR() ) TO USER "EDIDB2A" ;
+
+GRANT EXECUTE ON PROCEDURE "EDIDB2A"."SP_UTIL_TEST"( VARCHAR(),BIGINT ,VARCHAR(),VARCHAR(),INTEGER,VARCHAR()) TO USER "EDIDB2A" ;
+
+GRANT EXECUTE ON PROCEDURE "EDIDB2A"."SP_UTIL_GET_TP_LIST_FOR_ACK_TX"( CHARACTER(),VARCHAR(),BIGINT ,VARCHAR()) TO USER "EDIDB2A" ;
+
+GRANT EXECUTE ON PROCEDURE "EDIDB2A"."SP_UTIL_GET_ACK_FILE_NAMES_FOR_TX"( VARCHAR(),CHARACTER(),CHARACTER(),CHARACTER(),CLOB(),BIGINT ,VARCHAR()) TO USER "EDIDB2A" ;

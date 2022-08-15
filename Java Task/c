@@ -1,0 +1,28 @@
+package pK;
+
+
+public class Multi 
+{
+ void display1() {
+	 System.out.println(" miracle ");
+ }
+}
+ class level extends Multi{
+ void display2() {
+	 System.out.println(" Software ");
+ }
+ }
+ class inhrnce1 extends level{
+ void display3() {
+	 System.out.println(" Systems ");
+ } 
+ 
+
+ public static void main (String args[]){
+    inhrnce1 inh =new inhrnce1();
+	inh.display1();
+	inh.display2();
+	inh.display3();
+}
+ 
+}

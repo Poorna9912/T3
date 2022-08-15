@@ -1,0 +1,28 @@
+body
+{
+	background-color:lightblue;
+}
+
+h1
+{
+	color:white;
+}
+
+div
+{
+	color:green;
+	text-decoration:underline;
+}
+
+form
+{	text-align:center;
+	font-size:15px;
+	background-color:pink;
+	border-style:solid;
+	border-radius top:50px;
+	overflow:scroll;
+	height:50%;
+	width:50%;
+	margin-left:20%;
+	margin-right:40%;
+}

@@ -1,0 +1,10 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Type=Application
+Terminal=false
+Encoding=UTF-8
+Version=1.1
+Name=Eclipse IDE for Java Developers - 2022-06
+Exec=env GTK_IM_MODULE=ibus /home/miracle/eclipse/java-2022-06/eclipse/eclipse
+Categories=Development;IDE;
+Icon=/home/miracle/eclipse/java-2022-06/eclipse/icon.xpm

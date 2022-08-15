@@ -1,0 +1,22 @@
+﻿<HTML>
+<body>
+<script type="text/javascript">  
+function match pass(){  
+var first password=document.f1.password.value;  
+var conform password=document.f1.password2.value;  
+if(first password==conform password){  
+return true;  
+}  
+else{ 
+ alert("password must be same!");  
+return false;  
+}  
+}  
+</script>  
+<form name="f1" action="password.html" on submit="return match pass()">  
+Password:<input type="password" name="password" /><br><br> 
+conform Password:<input type="password" name="password2"/><br><br>
+<input type="submit">  
+</form>  
+</body>
+</HTML>

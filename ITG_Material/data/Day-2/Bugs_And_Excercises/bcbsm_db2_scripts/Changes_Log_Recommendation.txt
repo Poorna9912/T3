@@ -1,0 +1,455 @@
+Tasks to do on Monday (Aug/23/2010)
+===================================
+Phase1 Clean UP
+1) Start Eliminating the TBL_Tables in Dev one after the other
+2) Start Eliminating the TBL_Tables in SIT one after the other
+3) Migrate all Control Numbers from VARCHAR to BIGINT
+4) Start Eliminating all the Old Stored Procs with out the SP_
+5) Start Eliminating all the Stroed Procs & Tables that are not being used any more
+6) Migrate all the scripts from -td@ vf to -tvf and get rid of that @ in all *.sql Files and cleanup dbscript.sh
+7) Some of the SP's have to be modified to use the COALAESCE Function instead of the IF THEN
+
+Phase1 Improvements:
+1) Ensure that all table create statements will have the Table Name and Index Table Space Spelling Out Clearly.
+2) Ensure that all the tables names will also have the FOREIGN KEY Reference NOT ENFORCED Clause clearly Spelled out.
+3) Where are the T_OUT_ISA, T_OUT_ST and Other tables Definitions that are necessary for Outbound Process.
+4) Need to modfy the Edits Table and add more columns to it to support required functionality
+5) Clean up 837 Data Model and eliminate tables that are no longer being used.(PCES_TIME_TRACK) and a couple of other tables.
+6) Where is the ERROR_CODES TABLES & Other Tables for the CBE Handler and Email Response Handler
+7) Have a consolidated Zip File with all the DB Scripts for all the Transactions
+	Have a Directory for 837 Containing all 837 Files
+	Have a Directory for 270/271 Containing all 270/271 Files
+	Have a Directory for TP Files
+	Have a Directory for Common Files
+	Have a dbscript file at each one of the Levels and one at the root level
+	This should enable us to fire what ever we want or fire all of them at the same time
+	
+
+Sunday Aug/22/2010
+==================
+Follow ESQL Code Conventions in WebSphere Message Broker as per the Following Standards:
+http://www.ibm.com/developerworks/websphere/library/techarticles/0803_shen/0803_shen.html
+
+claimCnt = ClaimCount from FileListener;
+File Complaince we need to get the Total Accepted and Total Rejected
+Create a Queue: EDI.WMB.837.FILE.RECON
+
+Modify the EDI_WMB_837P_FILE_PROCESS to incude a While loop at the end of the Message Flow to receive the Acknowledgements from all of its Children.
+Children are all the Claims: 
+
+
+DECLARE reconValidClmAmt FLOAT 0.0;
+DECLARE reconInvalidClmAmt FLOAT 0.0;
+DECLARE reconValidCnt INTEGER 0;
+DECLARE reconInvalidCnt INTEGER 0;
+DECLARE reconTotalClaimsCnt INTEGER 0;
+DECLARE totWaitTimeSeconds INTEGER;
+DECLARE reconStartTime TIME CURRENT TIME;
+
+SET totWaitTimeSeconds = (claimCnt/4);
+
+While 
+	MQGET With Timeout of 5 Seconds
+	On Message:
+		Read the XML Message
+		-- Check if the Claim is an Accepted Claim or Rejected Claim
+		DECLARE claimCompStatus REFERENCE to InputRoot.XMLNSC.ClaimCompStatus;
+		DECLARE claimAmount REFERENCE to InputRoot.XMLNSC.ClaimAmount;
+		If ClaimCompStatus = 'a' then
+			SET reconValidCnt = reconValidCnt + 1;
+			SET reconValidClmAmt = reconValidClmAmt + claimAmount;
+		Else
+			SET reconInvalidCnt = reconInvalidCnt + 1;
+			SET reconInvalidClmAmt = reconInvalidClmAmt + claimAmount;
+		End if
+		SET reconTotalClaimsCnt = reconTotalClaimsCnt + 1;
+		PASSTHRU(CALL EDIDB2A.SP_837_FILE_RECON(?,?,?,?,?,?,?), fileId,reconValidCnt,reconInvalidCnt,reconValidClmAmt,reconInvalidClmAmt,errCd,errDesc);
+		if (reconTotalClaimsCnt = claimCnt) then
+			Put a Message onto EDI.WMB.FILE.RESP stating that the Reconcillation / Balancing i all done
+		else
+			go back into the Loop;
+		end if
+	On TimeOut:
+		DECLARE waitTimeSeconds TIME
+		waitTimeSeconds = CURRENT TIME - reconStartTime
+		IF (waitTimeSeconds > totWaitTimeSeconds) THEN
+			WRITE A CBE EVENT SAYING THE FILE RECON FAILED
+		ELSE
+			Get Back to Waiting on the MQGET
+		END IF;
+End While
+
+The Compliance Map also need to provide the No. of Valid Claims Versus the INvalid Claims back to the FILE_PROCESS Flow,
+
+Modify the Claim Splitter to Analze the File Name of the Claims for Valid and Invalid
+and then Associate the Valid / Invalid with each one of the Claims being passed to the Singleton Process Flow
+
+In the Singleton Process if the Claim is Invalid then dont apply the FEE just persist the Claim.
+At the end of the Singleton Process for Both Valid(Accepted) and Invalid Claims(Rejected) put a Message on to the EDI.WMB.837.FILE.RECON with the following content.
+<ClaimRecon>
+	<FileId>12345</FileId>
+	<ClaimId>1234567</ClaimId>
+	<ClaimCompStatus>a</ClaimCompStatus>
+	<ClaimFeeStatus>a</ClaimFeeStatus>
+	<ClaimAmount></ClaimAmount>
+</ClaimRecon>
+
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TASK1: Add the Following Columns to the T_837_FILE_PCES_LOG
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+VAL_CLM_CNT		INTEGER,
+INVAL_CLM_CNT	INTEGER,
+VAL_CLM_AMT		DECIMAL(10,2),
+INVAL_CLM_AMT	DECIMAL(10,2),
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TASK2: Stored Procedure for Persisting the File Process Reconcilliation Process
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+CALL EDIDB2A.SP_UTIL_DROP( 'PROCEDURE EDIDB2A.SP_837_FILE_RECON')@
+
+CREATE PROCEDURE EDIDB2A.SP_837_FILE_RECON(
+	IN	p_FILE_ID		BIGINT,
+	IN	p_VALID_CNT		INTEGER,
+	IN	p_INVALID_CNT	INTEGER,
+	IN	p_VALID_AMT		FLOAT,
+	IN	p_INVALID_AMT	FLOAT,
+	OUT p_ERR_CODE		BIGINT, 
+	OUT p_ERR_DESC		VARCHAR(255)
+)
+LANGUAGE SQL
+MODIFIES SQL DATA
+BEGIN
+	DECLARE SQLCODE 		INTEGER DEFAULT 0;
+	DECLARE v_sqlcode 		INTEGER;
+
+	--======================================================================
+	--	Setup the EXIT handler for all SQL exceptions
+	--======================================================================
+
+	DECLARE EXIT HANDLER FOR SQLEXCEPTION VALUES (SQLCODE) INTO v_sqlcode;
+
+	--=============================================================
+	--	Update the T_837_FILE_PCES_LOG
+	--=============================================================
+	
+
+		UPDATE T_837_FILE_PCES_LOG
+				SET (VAL_CLM_CNT,INVAL_CLM_CNT,VAL_CLM_AMT,INVAL_CLM_AMT)
+				=(p_VALID_CNT,p_INVALID_CNT,p_VALID_AMT,p_INVALID_AMT)
+		WHERE FILE_ID = p_FILE_ID;
+
+	VALUES (sqlcode) INTO v_sqlcode;
+
+	--=============================================================
+	-- Please set the p_flag value based on the sqlcode
+	--=============================================================
+
+	IF (v_sqlcode = 0) THEN
+		-- If the record exist for this Sender ID then set p_flag is 1
+		SET p_ERR_CODE = 0; 
+		SET p_ERR_DESC = 'Successfully Updated a Record into T_837_FILE_PCES_LOG::ID' || char(p_FILE_ID);
+	ELSE
+		-- For any sqlexceptions set p_flag is sqlcode
+		SET p_ERR_CODE = v_sqlcode;
+		SET p_ERR_DESC = 'Failed to insert a Record into the T_837_FILE_PCES_LOG:: FILE ID' || char(p_FILE_ID);
+	END IF;
+END@
+
+
+
+
+Saturday Aug/21/2010
+=====================
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TASK1: Create Table for Tracking Time for Process Details for CLAIM
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+CALL EDIDB2A.SP_UTIL_DROP( 'TABLE EDIDB2A.T_837_CLM_PCES_TME_TRCK');
+--=============================================================================
+--	TABLE:	T_837_CLM_PCES_TME_TRCK
+--	This table is used for tracking the time spend by the Claim Singleton
+--	Process making all the various calls to the back end systems
+--=============================================================================
+CREATE TABLE EDIDB2A.T_837_CLM_PCES_TME_TRCK (
+	CLM_ID 			BIGINT NOT NULL,
+	CLM_BG_TS		TIMESTAMP,
+	CLM_END_TS		TIMESTAMP,
+	STUB_BG_TS 		TIMESTAMP,
+	STUB_END_TS 	TIMESTAMP,
+	STUB_ERR_CD		INTEGER,
+	STUB_REQ		VARCHAR(120),
+	STUB_RESP		VARCHAR(120),
+	ITS_BG_TS		TIMESTAMP,
+	ITS_END_TS		TIMESTAMP,
+	ITS_ERR_CD		INTEGER,
+	ITS_REQ			VARCHAR(120),
+	ITS_RESP		VARCHAR(120),
+	NPI_BG_TS		TIMESTAMP,
+	NPI_END_TS		TIMESTAMP,
+	NPI_ERR_CD		INTEGER,
+	NPI_REQ			VARCHAR(120),
+	NPI_RESP		VARCHAR(120),
+	TOT_BACK_TS		BIGINT
+) IN TBSP_TABLES index IN TBSP_INDEX ;;
+
+ALTER TABLE T_837_CLM_PCES_TME_TRCK	ADD CONSTRAINT  X_837_CLM_PCES_TME_TRCK PRIMARY KEY (CLM_ID);
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TASK2: Wrote Stored Procs for Persisting the STUB / NPI / ITS Data to DB
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+CREATE PROCEDURE SP_837_PERSIST_STUB_DATA(
+	IN	p_CLM_ID		BIGINT,
+	IN	p_STUB_BG_TS 	TIMESTAMP,
+	IN	p_STUB_END_TS 	TIMESTAMP,
+	IN	p_STUB_ERR_CD	INTEGER,
+	IN	p_STUB_REQ		VARCHAR(120),
+	IN	p_STUB_RESP		VARCHAR(120),
+	OUT p_ERR_CODE		BIGINT, 
+	OUT p_ERR_DESC		VARCHAR(255)
+)
+
+CREATE PROCEDURE SP_837_PERSIST_ITS_DATA(
+	IN	p_CLM_ID		BIGINT,
+	IN	p_ITS_BG_TS 	TIMESTAMP,
+	IN	p_ITS_END_TS 	TIMESTAMP,
+	IN	p_ITS_ERR_CD	INTEGER,
+	IN	p_ITS_REQ		VARCHAR(120),
+	IN	p_ITS_RESP		VARCHAR(120),
+	OUT p_ERR_CODE		BIGINT, 
+	OUT p_ERR_DESC		VARCHAR(255)
+)
+
+CREATE PROCEDURE SP_837_PERSIST_NPI_DATA(
+	IN	p_CLM_ID		BIGINT,
+	IN	p_NPI_BG_TS 	TIMESTAMP,
+	IN	p_NPI_END_TS 	TIMESTAMP,
+	IN	p_NPI_ERR_CD	INTEGER,
+	IN	p_NPI_REQ		VARCHAR(120),
+	IN	p_NPI_RESP		VARCHAR(120),
+	OUT p_ERR_CODE		BIGINT, 
+	OUT p_ERR_DESC		VARCHAR(255)
+)
+
+
+Wednesday Aug/18/2010
+==========================================================
+CREATE TABLE T_837_CLM_PCES_LOG(
+	ID      	BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY 
+				(  	START WITH +100000001 	INCREMENT BY +1  
+					MINVALUE   +100000000  	MAXVALUE +9223372036854775807  
+					NO CYCLE  CACHE 20  NO ORDER 
+				) ,
+	CLM_ID		BIGINT ,
+	CLM_OBJ		CLOB ,
+	CLM_STU_CD	INTEGER, 
+	MSG_TYPE_CD	INTEGER ,
+	MSG_TS		TIMESTAMP ,
+	MSG_DAY		INTEGER
+);
+
+
+--CREATE UNIQUE INDEX X_837_CLM_PCS_LOG ON T_837_CLM_PCES_LOG (ID   ASC);
+ALTER TABLE T_837_CLM_PCES_LOG	ADD CONSTRAINT  X_837_CLM_PCS_LOG PRIMARY KEY (ID);
+
+CREATE PROCEDURE SP_CLAIM_BLOB_INSERT
+(
+	IN	p_CLM_OBJ		CLOB(6000),
+	IN	p_CLM_ID		BIGINT,
+	IN	p_CLM_STU_CD	INTEGER,
+	OUT	p_ID			BIGINT,
+	OUT p_ERR_CODE		BIGINT, 
+	OUT p_ERR_DESC		VARCHAR(255)
+)
+
+TASK: Aug/17/2010
+Create a small utility for Ali / Venkat to use. This is a major time saver for us.
+Please ensure that we also get rid of this as we move closer to UAT.
+----=============================================================================
+CREATE PROCEDURE sp_cleanup_837()
+BEGIN
+	DELETE FROM  EDIDB2A.T_837_CLM_CTRL_LOG;
+	DELETE FROM  EDIDB2A.T_837_FILE_PCES_LOG;
+	DELETE FROM  EDIDB2A.T_837_PCES_TME_TRCK ;
+	DELETE FROM  EDIDB2A.T_837_ISA ;
+	DELETE FROM  EDIDB2A.T_837_ST ;
+	DELETE FROM  EDIDB2A.T_837_GS ;
+	DELETE FROM  EDIDB2A.T_837_PROV ;
+	DELETE FROM  EDIDB2A.T_837_SUBS ;
+	DELETE FROM  EDIDB2A.T_837_SERVLN ;
+	DELETE FROM  EDIDB2A.T_837_PAT ;
+	DELETE FROM  EDIDB2A.T_837_CLM_PCES_LOG ;
+	DELETE FROM  EDIDB2A.T_837_EDIT ;
+	DELETE FROM  EDIDB2A.T_TA1 ;
+	DELETE FROM  EDIDB2A.T_TP_TRAN_DUP_CHK;
+END;
+
+Tuesday Aug/16/2010
+
+P_837_GET_EDI_BillingProvider - Need to add 2 Additional Output Parameters in MSG Flows.
+	Parameter3 OUT - ERR_CODE LONG INTEGER
+	Parameter4 OUT - ERR_DESC VARCHAR(255)
+
+SP_837_GET_EDI_SUBSCRIBER - added to 2 Additional Parameters towards the end.
+	Parameter3 OUT - ERR_CODE LONG INTEGER
+	Parameter4 OUT - ERR_DESC VARCHAR(255)
+
+SP_837_GET_EDI_PATIENT - added to 2 Additional Parameters towards the end.
+	Parameter3 OUT - ERR_CODE LONG INTEGER
+	Parameter4 OUT - ERR_DESC VARCHAR(255)
+	
+SP_837_GET_EDI_Claims - added to 2 Additional Parameters towards the end.
+	Parameter3 OUT - ERR_CODE LONG INTEGER
+	Parameter4 OUT - ERR_DESC VARCHAR(255)
+
+SP_837_GetElements - added to 2 Additional Parameters towards the end.
+	Parameter3 OUT - ERR_CODE LONG INTEGER
+	Parameter4 OUT - ERR_DESC VARCHAR(255)
+	
+Changed name of SP_837_STRING_SPLIT_INSERT to SP_837_INSERT_EDITS
+SP_837_INSERT_EDITS - added to 2 Additional Parameters towards the end.
+	Parameter3 OUT - ERR_CODE LONG INTEGER
+	Parameter4 OUT - ERR_DESC VARCHAR(255)
+	
+
+changed name of SP_837_STRING_SPLIT_INSERT5 to SP_837_INSERT_EDITS5
+Only One of these is needed. Get rid of the Other One
+
+SP_837_GET_EDITS - added to 2 Additional Parameters towards the end.
+	Eliminated 5th Parameter p_error varchar(50)
+	Parameter6 OUT - ERR_CODE LONG INTEGER
+	Parameter7 OUT - ERR_DESC VARCHAR(255)
+
+SP_837_COMPLIANCE_FILES - There is some thing missing here. LOgic Wise.
+Valid Invalid Files Insertion is also missing here.
+Compliance Data File Insertion is also missing here.
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Miracle DB2 Team Analysis & Recommendation:
+Date: Aug/12/2010 
+(Prasad Lokam, Nanaji, Ramakrishna Pattila, Suri, Jithen,Apparao, Sena)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Key Decisions:
+Storgage will be for a period of 6 months
+Average Claims / Day: 350,000
+Claims in DB Tables: 350,000 X 180 = 0,000
+Preliminary changes: 65 Million Records (A Potentially Large Record Set)
+Table Partitioning: Weekly will be a good approach
+Staging Table Potential Size: 72,000 Record
+	Based on (20 Claims/Second - Extrapolated for Largest File 70k Claims)
+2 ClOBS Per Claim Persistence
+
+Changes Suggested:	
+Control Numbers can be converted from VARCHAR to BIG INT.
+
+Some of the VARCHAR(2) to VARCHAR(10) can probably be converted to CHAR
+
+Decide on Table Partitions by Week and also decide on Roll in and roll out process in conjunction with the Archival Process.
+
+Try to Eliminate any VARCHAR based Primary Keys if Not Necessary
+
+INDEXING:Ensure that you also monitor the SQL Queries being coded by the Developers and ensure that the Appropriate Inxndexes are defined.
+
+Ask all the Developers to submit a SQL Query / SP List at end of their Design for you to analyze the Impact.
+
+Dont Over Optimize the DB Queries and cause trouble for Inserts from Staging Tables to Reporting Tables.
+
+Use SQL Parameterization or DB stored Procs to improve speed of Execution
+
+Dont do complex Math operations at DB level as it might not the best at it
+
+If implemented see if you can use Function instead of Stored Procs.
+
+Ensure that all the SQL Queries will enforce the usage of the Table Partition Key as part of the Query to restrict the range of Data that can be accessed..
+Also see if the Table Partition Index is made as part of the Primary Key.
+Also try to group the most commonly updated columns into once chunk(Columnn Order).
+
+Ensure Reorg is done on a regular basis especially after the Archive and Roll in / Roll out Process.
+
+Lookup Tables:
+Set up all your lookup tables on a Seperate Tablespace and ensure that the Size of this is optimally 
+adjusted so that you dont waste the memory by over allocating or underallocating.
+
+Use runstats / db2pd / snapshop data for further finetuning of bufferpools
+Also create Foreign Key References to these Lookup tables in other tables with out the Constraint Enforcement so that the Optimizer still picks up the hint for trying to optimize the query patjh
+
+CLOBS:
+Since the Clob Size is less than 10K Make the Clobs as INline or change their Data type as VARCHAR.
+Also ensure that you also turn the Logging off if acceptable to Customer
+Also ensure that you allocate the right Page Size to this Table Space / Buffer Pools(> 8K)
+Also ensure that you turn compression on for these Columns as the Impact of CPU versu IO will be significant
+
+Inserts:
+To optimize the Performance of Inserts and to avoid the FSCR add the APPEND ON Clause to Tables Defs.
+This can be done at a latter point of time - No impact on Code
+
+Staging Tables:
+Implement the Concept of Staging Tables like how we did for real time to ensure that Reporting activities against the historical tables does not affect the Transactions.
+This needs to be implemented right now so that the Code does not have a big impact.
+Change to be implemented around Sep/2nd/Week.
+
+Also ensure that you associate a dedicated Buffer Pools optimally designed for the staging tables so that the transactions can run at blazing spped.
+
+
+Locking:
+Ensure that you are not running too many long running transactions.
+But if this is the case then try to optimize the LOCKSIZE on Table.
+Be very carefull with this. Also ensure that most of your select can proceed with UR for Isolation if possible.
+Watch out DB2 does not support Page Locking but does support row and table level locking.
+
+Set the following parameters towards the end as this does not affect the Code:
+    * DB2_EVALUNCOMMITTED=YES
+    * DB2_SKIPDELETED=ON
+    * DB2_SKIPINSERTED=ON
+	Also need to set the DB2 Alternate page Cleaning
+	
+Data Log Performance:
+	Since we have lots of CLOBS see if the customer can get away with out Loggings Clobs	
+	If you have capability to put the Logs onto a Seperate Disk do that and may be even stripe them.
+	Set DB2Log Buffer to 256K or some thing much larger than default.
+	
+Storage IO Optimiartion:
+	Try to spread the Tables Spaces as efficiently as possible on to the Various Disks.
+	Ensure that you have atleast 10 to 15 Disks for the Production
+	Custore has a SAN of some sort implemented, but still make sure that you request BCBSM about this.
+	Also monitor IO using VMSTAT and IOSTAT and watch for performance in conjunction with TOP.
+	Ensure that we have a Dedicated set of CPU's for this.
+
+Archive Database:
+	Ensure that the archive Database is on a seperate Server and seperate Storage Sub System.
+	
+Check for any Fix Packs that are made available and apply them as frequently as possible with in Limitation / dependencies
+
+Ensure that Connection Pooling is implemented for this environment using DB2Connect.
+
+Take a look at MINCOMMIT but watch out this can also impact the Updates. So be carefull about optimizing this.
+
+Watch for the db2sysc and monitor the various threads with in this process using System Utilities.
+
+
+Aug/08/2010
+10 Points for Basic Improvement of Process (Jithen / Nanaji / Jagadish)
+=======================================================================
+1) Ensure that you strat using multiple DDL scripts in conjunction with a Shell Script.
+
+2) Also ensure that you have some of the SEED data population scipts atleast as interim to hlep Developers
+
+3) EDIDB2A Schema name is missing in several References. This is causing a major problem with Steve's deployment on QA.
+
+4) No Foreign Keys on Tables and this can become a problem if not documented properly
+
+5) Also ensure that as you do DDL export from RAZOR SQL you dont forget to track the Alter Commands.
+
+6)Some times some tables are moving with no Primary Key.
+
+7)This can be construed as lacking Fundamentals - Watch out.
+
+8)Ensure that all changes to DB are done through scripts.
+
+9)We need to improve our process.
+
+10)Also Synchronization between Yehoshuva and our team is becoming a major challenge.
+
+11) Use of TOAD / Razor SQL is becoming a problem across multipel users.
